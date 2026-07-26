@@ -5,8 +5,6 @@ import com.example.typeracer.entities.GameRoom;
 import com.example.typeracer.entities.Player;
 import com.example.typeracer.enums.GameState;
 import lombok.RequiredArgsConstructor;
-import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -37,14 +35,12 @@ public class RoomService {
 
     // ---------- 1. Join or create room ----------
 
-    public GameRoom joinOrCreateRoom(String roomId, String playerName, String sessionId) {
+    public GameRoom joinOrCreateRoom(String roomId, String username, Long userId) {
         GameRoom room;
         boolean isFirstPlayer = false;
 
         if (roomId == null || roomId.isBlank()) {
             roomId = UUID.randomUUID().toString().substring(0, 6);
-            System.out.println("Created new room with ID: " + roomId);
-
             room = new GameRoom();
             room.setId(roomId);
             room.setPlayers(new ArrayList<>());
@@ -56,29 +52,29 @@ public class RoomService {
             if (room == null) throw new IllegalArgumentException("Room not found: " + roomId);
             if (room.getState() != GameState.WAITING) throw new IllegalStateException("Room already in progress or finished");
             boolean alreadyJoined = room.getPlayers().stream()
-                    .anyMatch(p -> sessionId.equals(p.getWebSessionId()));
+                    .anyMatch(p -> username.equals(p.getName()));
             if (alreadyJoined) {
-                throw new IllegalStateException("This session already joined this room");
+                throw new IllegalStateException("Already joined this room");
             }
             if (room.getPlayers().size() >= MAX_PLAYERS_PER_ROOM) throw new IllegalStateException("Room is full");
         }
 
         Player player = new Player();
         player.setId(UUID.randomUUID().toString());
-        player.setName(playerName);
+        player.setName(username);
+        player.setUserId(userId);
         player.setCharIndex(0);
         player.setCorrectChars(0);
         player.setWpm(0.0);
         player.setReady(false);
         player.setHost(isFirstPlayer);
-        player.setWebSessionId(sessionId);
 
         room.getPlayers().add(player);
 
         List<PlayerStatus> statuses = room.getPlayers().stream()
                 .map(p -> new PlayerStatus(p.getId(), p.getName(), p.isReady(), p.isHost()))
                 .toList();
-        sendToSession(sessionId, "/queue/room-joined", new RoomJoinedMessage(room.getId(), player.getId(), statuses));
+        sendToUser(username, "/queue/room-joined", new RoomJoinedMessage(room.getId(), player.getId(), statuses));
 
         broadcastPlayersUpdate(room);
 
@@ -87,10 +83,10 @@ public class RoomService {
 
     // ---------- 2. Ready toggle ----------
 
-    public void setReady(String roomId, String playerId, boolean ready) {
+    public void setReady(String roomId, String username, boolean ready) {
         GameRoom room = rooms.get(roomId);
         if (room == null) return;
-        Player player = findPlayer(room, playerId);
+        Player player = findPlayerByUsername(room, username);
         if (player == null) return;
 
         player.setReady(ready);
@@ -106,11 +102,11 @@ public class RoomService {
 
     // ---------- 3. Host starts the game ----------
 
-    public void startGame(String roomId, String requesterId) {
+    public void startGame(String roomId, String username) {
         GameRoom room = rooms.get(roomId);
         if (room == null) throw new IllegalStateException("Room not found");
 
-        Player requester = findPlayer(room, requesterId);
+        Player requester = findPlayerByUsername(room, username);
         if (requester == null || !requester.isHost()) {
             throw new IllegalStateException("Only the host can start the game");
         }
@@ -159,11 +155,11 @@ public class RoomService {
 
     // ---------- 5. Progress updates ----------
 
-    public void updateProgress(String roomId, String playerId, Integer charIndex, Integer correctChars) {
+    public void updateProgress(String roomId, String username, Integer charIndex, Integer correctChars) {
         GameRoom room = rooms.get(roomId);
         if (room == null || room.getState() != GameState.IN_PROGRESS) return;
 
-        Player player = findPlayer(room, playerId);
+        Player player = findPlayerByUsername(room, username);
         if (player == null) return;
 
         player.setCharIndex(charIndex);
@@ -173,11 +169,11 @@ public class RoomService {
         double wpm = minutesElapsed > 0 ? (correctChars / 5.0) / minutesElapsed : 0.0;
         player.setWpm(wpm);
 
-        ProgressUpdateMessage update = new ProgressUpdateMessage(playerId, charIndex, correctChars, wpm);
+        ProgressUpdateMessage update = new ProgressUpdateMessage(player.getId(), charIndex, correctChars, wpm);
         messagingTemplate.convertAndSend("/topic/room/" + roomId, update);
 
         if (charIndex >= room.getTargetText().length()) {
-            endGame(room, playerId);
+            endGame(room, player.getId());
         }
     }
 
@@ -198,15 +194,14 @@ public class RoomService {
 
     // ---------- helpers ----------
 
-    private Player findPlayer(GameRoom room, String playerId) {
+    private Player findPlayerByUsername(GameRoom room, String username) {
         return room.getPlayers().stream()
-                .filter(p -> p.getId().equals(playerId))
+                .filter(p -> username.equals(p.getName()))
                 .findFirst()
                 .orElse(null);
     }
 
-    private void sendToSession(String sessionId, String destination, Object payload) {
-        System.out.println("Sending to session: " + sessionId + " -> " + destination);
-        messagingTemplate.convertAndSendToUser(sessionId, destination, payload);
+    private void sendToUser(String username, String destination, Object payload) {
+        messagingTemplate.convertAndSendToUser(username, destination, payload);
     }
 }

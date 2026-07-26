@@ -9,7 +9,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ProgressMessage {
     private String roomId;
-    private String playerId;
     private Integer charIndex;
     private Integer correctChars;
 }

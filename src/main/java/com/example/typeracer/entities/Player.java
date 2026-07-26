@@ -5,11 +5,12 @@ import lombok.*;
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
 public class Player {
 
     private String id;
     private String name;
-    private String webSessionId;
+    private Long userId;
     private Integer charIndex;
     private Integer correctChars;
     private Double wpm;

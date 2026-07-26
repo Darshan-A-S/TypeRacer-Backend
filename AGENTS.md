@@ -1,31 +1,61 @@
-# TypeRacer — Spring Boot WebSocket Multiplayer Typing Game
+# TypeRacer — Multiplayer Typing Race Game
+
+## Repo layout
+
+```
+TypeRacer/          ← Spring Boot backend (this directory)
+frontend/           ← React + Vite frontend (sibling directory)
+```
 
 ## Quick start
 
+**Backend** (port 8080):
 ```bash
 cd TypeRacer
-./mvnw spring-boot:run        # run the app
-./mvnw test                   # run tests
-./mvnw package                # build jar
+./mvnw spring-boot:run
+```
+
+**Frontend** (port 3000, proxies /ws to backend):
+```bash
+cd ../frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`. Two browser tabs = two players.
+
+Other commands:
+```bash
+./mvnw test               # backend tests
+npm run build              # frontend production build
+npm run lint               # frontend lint
 ```
 
 ## Tech stack
 
-- Java 17, Spring Boot 4.1.0, Maven
-- STOMP over WebSocket (SockJS fallback enabled)
-- Lombok (annotation processing configured in pom.xml)
-- No database — all state lives in-memory (`ConcurrentHashMap` in `RoomService`)
+**Backend:** Java 17, Spring Boot 4.1.0, Maven, STOMP over WebSocket (SockJS fallback), Lombok, in-memory state
+
+**Frontend:** React 19, Vite 8, @stomp/stompjs (native WebSocket, no SockJS client needed)
 
 ## Architecture
 
-Single-module app. The game is purely WebSocket-driven; there is no REST API beyond a health-check ping.
+The game is purely WebSocket-driven; no REST API.
+
+### Backend
 
 - `controller/GameWebSocketController` — STOMP message handler (`/join`, `/ready`, `/start`, `/progress`)
 - `service/RoomService` — all game logic: room lifecycle, countdown, progress tracking, WPM calc, end-game
 - `entities/` — `GameRoom`, `Player` (Lombok POJOs, no JPA)
 - `enums/GameState` — `WAITING → COUNTDOWN → IN_PROGRESS → FINISHED`
 - `dtos/` — inbound/outbound STOMP message types
-- `config/WebSocketConfig` — broker config (`/topic`, `/queue` prefixes; `/app` destination prefix)
+- `config/WebSocketConfig` — broker config, user principal interceptor
+
+### Frontend
+
+- `src/hooks/useGame.js` — all game state + STOMP connection in one hook
+- `src/components/` — JoinScreen, Lobby, Race, Results, Countdown
+- `src/lib/stomp.js` — STOMP client factory
+- Vite proxy: `/ws` → `localhost:8080` in dev mode
 
 ## Gotchas
 

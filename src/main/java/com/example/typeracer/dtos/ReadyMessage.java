@@ -9,6 +9,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ReadyMessage {
     private String roomId;
-    private String playerId;
     private boolean ready;
 }

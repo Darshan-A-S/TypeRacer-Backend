@@ -9,5 +9,4 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class StartGameMessage {
     private String roomId;
-    private String playerId;
 }

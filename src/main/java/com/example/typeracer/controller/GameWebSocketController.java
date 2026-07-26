@@ -1,11 +1,13 @@
 package com.example.typeracer.controllers;
 
+import com.example.typeracer.config.UserPrincipal;
 import com.example.typeracer.dtos.*;
 import com.example.typeracer.services.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.stereotype.Controller;
+
+import java.security.Principal;
 
 @Controller
 @RequiredArgsConstructor
@@ -14,25 +16,26 @@ public class GameWebSocketController {
     private final RoomService roomService;
 
     @MessageMapping("/join")
-    public void joinRoom(JoinRoomMessage message, SimpMessageHeaderAccessor headerAccessor) {
-        roomService.joinOrCreateRoom(message.getRoomId(), message.getPlayerName(), headerAccessor.getSessionId());
+    public void joinRoom(JoinRoomMessage message, Principal principal) {
+        UserPrincipal user = (UserPrincipal) principal;
+        roomService.joinOrCreateRoom(message.getRoomId(), user.getName(), user.getUserId());
     }
 
     @MessageMapping("/ready")
-    public void ready(ReadyMessage message) {
-        roomService.setReady(message.getRoomId(), message.getPlayerId(), message.isReady());
+    public void ready(ReadyMessage message, Principal principal) {
+        roomService.setReady(message.getRoomId(), principal.getName(), message.isReady());
     }
 
     @MessageMapping("/start")
-    public void start(StartGameMessage message) {
-        roomService.startGame(message.getRoomId(), message.getPlayerId());
+    public void start(StartGameMessage message, Principal principal) {
+        roomService.startGame(message.getRoomId(), principal.getName());
     }
 
     @MessageMapping("/progress")
-    public void progress(ProgressMessage message) {
+    public void progress(ProgressMessage message, Principal principal) {
         roomService.updateProgress(
                 message.getRoomId(),
-                message.getPlayerId(),
+                principal.getName(),
                 message.getCharIndex(),
                 message.getCorrectChars()
         );
