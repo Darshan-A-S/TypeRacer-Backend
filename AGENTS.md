@@ -3,74 +3,68 @@
 ## Repo layout
 
 ```
-TypeRacer/          ← Spring Boot backend (this directory)
-frontend/           ← React + Vite frontend (sibling directory)
+TypeRacer/           ← Spring Boot backend (this directory)
+frontend/            ← React + Vite frontend (sibling, see frontend/AGENTS.md)
 ```
 
 ## Quick start
 
-**Backend** (port 8080):
-```bash
-cd TypeRacer
-./mvnw spring-boot:run
-```
+**Prerequisites:** MySQL running on `localhost:3306`, database `typeracer` (auto-created with `createDatabaseIfNotExist=true`).
 
-**Frontend** (port 3000, proxies /ws to backend):
 ```bash
-cd ../frontend
-npm install
-npm run dev
+./mvnw spring-boot:run          # backend on :8080
+# In another terminal:
+cd ../frontend; npm install; npm run dev  # frontend on :3000
 ```
 
 Open `http://localhost:3000`. Two browser tabs = two players.
 
 Other commands:
 ```bash
-./mvnw test               # backend tests
-npm run build              # frontend production build
-npm run lint               # frontend lint
+./mvnw test               # single context-loads test
+npm run build              # frontend prod build
+npm run lint               # frontend oxlint
 ```
-
-## Tech stack
-
-**Backend:** Java 17, Spring Boot 4.1.0, Maven, STOMP over WebSocket (SockJS fallback), Lombok, in-memory state
-
-**Frontend:** React 19, Vite 8, @stomp/stompjs (native WebSocket, no SockJS client needed)
 
 ## Architecture
 
-The game is purely WebSocket-driven; no REST API.
+### Backend packages (`com.example.typeracer.*`)
 
-### Backend
+| Layer | Files | What |
+|---|---|---|
+| `controller/` | `AuthController` | REST `/auth/register`, `/auth/login` |
+| `controllers/` | `GameWebSocketController` | STOMP `/app/{join,ready,start,progress}` |
+| `service/` | `AuthService`, `JwtService` | User registration/login, JWT token ops |
+| `services/` | `RoomService` | Game room lifecycle, countdown, WPM calc, end-game |
+| `repository/` | `UserRepository` | JPA repo for `User` entity |
+| `entities/` | `User` (JPA, table `users`), `GameRoom`, `Player` (POJOs) | |
+| `enums/` | `GameState` | `WAITING → COUNTDOWN → IN_PROGRESS → FINISHED` |
+| `dtos/` | 13 message types | Inbound/outbound STOMP + REST DTOs |
+| `config/` | `WebSocketConfig`, `SecurityConfig`, `JwtAuthInterceptor`, `UserPrincipal` | Broker config, CSRF disabled, WS auth interceptor |
 
-- `controller/GameWebSocketController` — STOMP message handler (`/join`, `/ready`, `/start`, `/progress`)
-- `service/RoomService` — all game logic: room lifecycle, countdown, progress tracking, WPM calc, end-game
-- `entities/` — `GameRoom`, `Player` (Lombok POJOs, no JPA)
-- `enums/GameState` — `WAITING → COUNTDOWN → IN_PROGRESS → FINISHED`
-- `dtos/` — inbound/outbound STOMP message types
-- `config/WebSocketConfig` — broker config, user principal interceptor
-
-### Frontend
-
-- `src/hooks/useGame.js` — all game state + STOMP connection in one hook
-- `src/components/` — JoinScreen, Lobby, Race, Results, Countdown
-- `src/lib/stomp.js` — STOMP client factory
-- Vite proxy: `/ws` → `localhost:8080` in dev mode
+Key facts:
+- **Hybrid:** User auth is JPA/MySQL-backed (REST). Game rooms are in-memory (`ConcurrentHashMap` in `RoomService`), ephemeral 60s after game ends.
+- **REST endpoints:** `POST /auth/register`, `POST /auth/login` — both return/permit JWTs.
+- **WebSocket auth required:** Every STOMP `CONNECT` frame must carry `Authorization: Bearer <jwt>`. Rejected with 403 if missing/expired. Access token from `POST /auth/login` response.
+- **SockJS enabled** on the server endpoint (`/ws` with `.withSockJS()`). Frontend uses native WebSocket via `@stomp/stompjs` but SockJS is available.
+- **STOMP:** Client sends to `/app/{join,ready,start,progress}`, server broadcasts to `/topic/room/{roomId}`, user-queued to `/queue/room-joined`.
 
 ## Gotchas
 
-**Package directory mismatch:** The filesystem directories are `controller/` and `service/`, but the Java package declarations say `controllers` and `services`. Both compile (the `package` declaration is what matters), but don't rename one without the other or you'll break it.
+**Package name inconsistency:** Filesystem dirs are `controller/` and `service/`, but `GameWebSocketController` declares `package controllers` (plural) and `RoomService` declares `package services` (plural). The other files use singular `controller`/`service`. Both compile fine — never rename a dir without fixing the matching package declaration.
 
-**Rooms are ephemeral:** `RoomService.rooms` is an in-memory map. A room is removed 60 seconds after the game ends. Restarting the server wipes all rooms.
+**MySQL required for startup:** `application.properties` points at `jdbc:mysql://localhost:3306/typeracer`. The app won't start without a running MySQL. Credentials (`root` / `Darshan@123`) and JWT secret (`jwt.secret`) are hardcoded — replace for production.
 
 **Hardcoded 2-player cap:** `MAX_PLAYERS_PER_ROOM = 2` in `RoomService`.
 
-**Text bank is small:** Only 3 sentences in `TEXT_BANK`. Add more or replace with an API when needed.
+**Text bank is small:** 3 sentences in `TEXT_BANK`.
 
-**STOMP destinations:** Client sends to `/app/{join,ready,start,progress}`. Server broadcasts to `/topic/room/{roomId}`. User-specific messages go to `/queue/room-joined`.
-
-**Countdown uses a scheduled executor:** `startCountdown` stops itself by throwing a `RuntimeException("stop")` — ugly but functional.
+**Countdown:** `startCountdown` stops by throwing `RuntimeException("stop")` — functional but ugly.
 
 ## Testing
 
-Only one test class exists (`TypeRacerApplicationTests`). There is no WebSocket integration test coverage. When adding tests, use `spring-boot-starter-websocket-test` which is already a dependency.
+Only `TypeRacerApplicationTests` (context loads). No WebSocket integration tests. `spring-boot-starter-websocket-test` is on the classpath when you add them.
+
+## Frontend
+
+See `../frontend/AGENTS.md`.

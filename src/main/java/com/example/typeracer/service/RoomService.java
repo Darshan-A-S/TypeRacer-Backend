@@ -1,4 +1,4 @@
-package com.example.typeracer.services;
+package com.example.typeracer.service;
 
 import com.example.typeracer.dtos.*;
 import com.example.typeracer.entities.GameRoom;
