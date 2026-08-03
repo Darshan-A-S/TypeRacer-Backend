@@ -1,8 +1,8 @@
-package com.example.typeracer.controllers;
+package com.example.typeracer.controller;
 
 import com.example.typeracer.config.UserPrincipal;
 import com.example.typeracer.dtos.*;
-import com.example.typeracer.services.RoomService;
+import com.example.typeracer.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
