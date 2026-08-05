@@ -12,4 +12,6 @@ public class PlayerResult {
     private String playerName;
     private Double wpm;
     private Integer correctChars;
+    private Double accuracy;
+    private Integer errors;
 }

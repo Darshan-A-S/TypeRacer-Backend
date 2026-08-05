@@ -14,6 +14,9 @@ public class Player {
     private Integer charIndex;
     private Integer correctChars;
     private Double wpm;
+    private Double accuracy;
+    private Integer errors;
+    private Integer rank;
     private boolean ready;
     private boolean host;
 }

@@ -18,4 +18,5 @@ public class GameRoom {
     private GameState state;
     private String targetText;
     private LocalDateTime startTime;
+    private LocalDateTime finishedAt;
 }

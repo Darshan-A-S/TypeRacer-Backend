@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ProgressUpdateMessage {
     private String playerId;
+    private String playerName;
     private Integer charIndex;
     private Integer correctChars;
     private Double wpm;

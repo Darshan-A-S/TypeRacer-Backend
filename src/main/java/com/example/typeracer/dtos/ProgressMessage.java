@@ -11,4 +11,5 @@ public class ProgressMessage {
     private String roomId;
     private Integer charIndex;
     private Integer correctChars;
+    private Integer errors;
 }
